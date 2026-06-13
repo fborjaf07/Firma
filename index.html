@@ -1,0 +1,393 @@
+Firma
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firmador Visual - Estilo Oficial FirmaEC</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #1e293b;
+            --primary-hover: #334155;
+            --bg-layout: #e2e8f0;
+            --sidebar-bg: #ffffff;
+            --border-color: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: var(--bg-layout);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            gap: 15px;
+            height: 96vh;
+            box-sizing: border-box;
+        }
+
+        /* Barra de Control Izquierda */
+        .sidebar {
+            width: 380px;
+            background: var(--sidebar-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        /* Visor de PDF Derecho */
+        .viewer-container {
+            flex-grow: 1;
+            background: #475569;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        h2 {
+            color: #0284c7;
+            font-size: 16px;
+            margin: 0;
+            text-transform: uppercase;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 5px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 12px;
+            color: #334155;
+        }
+
+        input, select {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .coords-box {
+            background: #f8fafc;
+            padding: 10px;
+            border: 1px dashed #0284c7;
+            border-radius: 4px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 5px;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        .btn-submit {
+            background-color: #0284c7;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .btn-submit:hover {
+            background-color: #0369a1;
+        }
+
+        .pdf-page-wrapper {
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+            margin-bottom: 25px;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* ========================================================
+           DISEÑO EXACTO DE LA ESTAMPA REPLICADO DE LA IMAGEN (FirmaEC)
+           ======================================================== */
+        .firmaec-stamp-container {
+            position: absolute;
+            /* Proporciones exactas de la estampa oficial en el papel */
+            width: 210px; 
+            height: 48px;
+            background: transparent; /* No tiene fondo para no tapar líneas guía si no se requiere */
+            display: flex;
+            align-items: center;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+            display: none; 
+        }
+
+        /* El recuadro del código QR de la captura */
+        .firmaec-qr-box {
+            width: 44px;
+            height: 44px;
+            background: #000000;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5px;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #000;
+            flex-shrink: 0;
+            margin-right: 6px;
+        }
+
+        /* Bloque de textos alineados a la derecha del QR */
+        .firmaec-text-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            font-size: 7.5px;
+            color: #555555;
+            line-height: 1.2;
+            width: 100%;
+            border-bottom: 1px solid #000000; /* Línea inferior que cruza todo el texto */
+            padding-bottom: 2px;
+        }
+
+        .firmaec-text-box .legal-notice {
+            font-size: 6px;
+            color: #777777;
+        }
+
+        .firmaec-text-box .signer-name {
+            font-weight: bold;
+            color: #000000;
+            font-size: 8.5px;
+            text-transform: uppercase;
+            margin-top: 1px;
+        }
+
+        .firmaec-text-box .signing-date {
+            font-size: 6.5px;
+            color: #444444;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>Estructura FirmaEC</h2>
+        
+        <div class="form-group">
+            <label for="pdfUpload">1. Cargar Documento (PDF)</label>
+            <input type="file" id="pdfUpload" accept=".pdf">
+        </div>
+
+        <div class="form-group">
+            <label for="fullName">Nombre del Firmante</label>
+            <input type="text" id="fullName" value="FABIAN ALBERTO BORJA FERNANDEZ" oninput="updateLiveStamp()">
+        </div>
+
+        <div class="form-group">
+            <label>Fecha y Hora del Estampado</label>
+            <div style="font-size: 11px; display:flex; flex-direction:column; gap:5px;">
+                <label><input type="radio" name="timeSelector" value="real" checked onchange="toggleTimeMode()"> Usar Hora de la PC</label>
+                <label><input type="radio" name="timeSelector" value="forced" onchange="toggleTimeMode()"> Forzar Fecha Manual</label>
+            </div>
+            <input type="datetime-local" id="manualTime" value="2026-05-31T17:00" style="display:none;" onchange="updateLiveStamp()">
+        </div>
+
+        <div class="form-group">
+            <label>Ubicación Obtenida</label>
+            <div class="coords-box">
+                <div><strong>Pág:</strong> <span id="outPage">-</span></div>
+                <div><strong>X (pts):</strong> <span id="outX">-</span></div>
+                <div><strong>Y (pts):</strong> <span id="outY">-</span></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="p12File">Archivo Digital (.p12 / .pfx)</label>
+            <input type="file" id="p12File" accept=".p12,.pfx">
+        </div>
+        
+        <div class="form-group">
+            <label for="p12Pass">Contraseña de Firma</label>
+            <input type="password" id="p12Pass" placeholder="••••••••">
+        </div>
+
+        <button type="button" class="btn-submit" onclick="sendToCryptographicSigner()">Inyectar Firma Estructural</button>
+    </div>
+
+    <div class="viewer-container" id="viewerContainer">
+        <p id="initNotice" style="color: #94a3b8; margin-top: 150px; font-weight: 500;">Carga un PDF para ubicar visualmente la firma sobre el documento.</p>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        let currentPdf = null;
+        let ptX = 0;
+        let ptY = 0;
+        let targetPage = 1;
+
+        // Escuchar el evento de subida del archivo
+        document.getElementById('pdfUpload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file && file.type === "application/pdf") {
+                document.getElementById('initNotice').style.display = 'none';
+                const fileReader = new FileReader();
+                fileReader.onload = function() {
+                    const arrayBufferBytes = new Uint8Array(this.result);
+                    renderPdfLayout(arrayBufferBytes);
+                };
+                fileReader.readAsArrayBuffer(file);
+            }
+        });
+
+        function renderPdfLayout(bytes) {
+            const viewer = document.getElementById('viewerContainer');
+            viewer.querySelectorAll('.pdf-page-wrapper').forEach(node => node.remove());
+
+            pdfjsLib.getDocument(bytes).promise.then(function(pdfInstance) {
+                currentPdf = pdfInstance;
+                for (let i = 1; i <= pdfInstance.numPages; i++) {
+                    drawPageNode(i);
+                }
+            });
+        }
+
+        function drawPageNode(num) {
+            currentPdf.getPage(num).then(function(page) {
+                const viewer = document.getElementById('viewerContainer');
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'pdf-page-wrapper';
+                wrapper.dataset.page = num;
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const viewport = page.getViewport({scale: 1.25}); // Escala estándar para clics precisos
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                wrapper.appendChild(canvas);
+                
+                // Estructura HTML idéntica a la firma de tu imagen
+                const stamp = document.createElement('div');
+                stamp.className = 'firmaec-stamp-container';
+                stamp.id = `firma-p-${num}`;
+                stamp.innerHTML = `
+                    <div class="firmaec-qr-box">CÓDIGO<br>QR</div>
+                    <div class="firmaec-text-box">
+                        <div class="legal-notice">Validar únicamente en FirmaEC</div>
+                        <div class="legal-notice" style="margin-top:-2px;">Firmado electrónicamente por:</div>
+                        <div class="signer-name" id="lbl-name-${num}">-</div>
+                        <div class="signing-date" id="lbl-date-${num}">Fecha: --/--/----</div>
+                    </div>
+                `;
+                wrapper.appendChild(stamp);
+                viewer.appendChild(wrapper);
+
+                const renderContext = { canvasContext: ctx, viewport: viewport };
+                
+                page.render(renderContext).promise.then(() => {
+                    // Capturar clics para obtener coordenadas nativas de PDF
+                    wrapper.addEventListener('click', function(e) {
+                        const canvasBounds = canvas.getBoundingClientRect();
+                        
+                        const clickX = e.clientX - canvasBounds.left;
+                        const clickY = e.clientY - canvasBounds.top;
+
+                        // Conversión a puntos nativos de PDF (Punto 0,0 abajo a la izquierda)
+                        const pdfX = (clickX / canvasBounds.width) * page.view[2];
+                        const pdfY = page.view[3] - ((clickY / canvasBounds.height) * page.view[3]);
+
+                        ptX = Math.round(pdfX);
+                        ptY = Math.round(pdfY);
+                        targetPage = num;
+
+                        // Actualizar textos en la barra lateral
+                        document.getElementById('outPage').innerText = targetPage;
+                        document.getElementById('outX').innerText = ptX;
+                        document.getElementById('outY').innerText = ptY;
+
+                        // Manejar visibilidad del recuadro FirmaEC
+                        document.querySelectorAll('.firmaec-stamp-container').forEach(s => s.style.display = 'none');
+                        
+                        const activeStamp = document.getElementById(`firma-p-${num}`);
+                        activeStamp.style.display = 'flex';
+                        
+                        // Posicionar el recuadro visual de forma que la línea coincida con el clic
+                        activeStamp.style.left = `${clickX}px`;
+                        activeStamp.style.top = `${clickY - 34}px`; // Ajuste de altura para simular el pisado de firma de la imagen
+
+                        updateLiveStamp();
+                    });
+                });
+            });
+        }
+
+        function toggleTimeMode() {
+            const mode = document.querySelector('input[name="timeSelector"]:checked').value;
+            document.getElementById('manualTime').style.display = (mode === 'forced') ? 'block' : 'none';
+            updateLiveStamp();
+        }
+
+        function updateLiveStamp() {
+            if (!currentPdf) return;
+            
+            const name = document.getElementById('fullName').value;
+            const mode = document.querySelector('input[name="timeSelector"]:checked').value;
+            
+            let timeString = "";
+            if (mode === 'real') {
+                timeString = new Date().toLocaleString();
+            } else {
+                const picked = document.getElementById('manualTime').value;
+                timeString = picked ? new Date(picked).toLocaleString() : new Date().toLocaleString();
+            }
+
+            const nameTarget = document.getElementById(`lbl-name-${targetPage}`);
+            const dateTarget = document.getElementById(`lbl-date-${targetPage}`);
+
+            if(nameTarget) nameTarget.innerText = name;
+            if(dateTarget) dateTarget.innerText = `Fecha: ${timeString}`;
+        }
+
+        function sendToCryptographicSigner() {
+            if (!currentPdf) {
+                alert("Por favor, sube un archivo PDF primero.");
+                return;
+            }
+            if (ptX === 0 && ptY === 0) {
+                alert("Haz clic sobre la línea de firma en el PDF para capturar las coordenadas.");
+                return;
+            }
+
+            const outData = {
+                page: targetPage,
+                x: ptX,
+                y: ptY,
+                signerName: document.getElementById('fullName').value,
+                forcedDate: document.querySelector('input[name="timeSelector"]:checked').value === 'forced' ? document.getElementById('manualTime').value : "PC_TIME"
+            };
+
+            alert(`Coordenadas listas para tu algoritmo de firma:\n\nPágina: ${outData.page}\nPosición X: ${outData.x} pts\nPosición Y: ${outData.y} pts\nFirmante: ${outData.signerName}\n\n¡La firma se estampará con el tamaño y diseño oficial en este punto exacto!`);
+        }
+    </script>
+</body>
+</html>
